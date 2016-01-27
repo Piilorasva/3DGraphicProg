@@ -1,0 +1,137 @@
+<!-- Janne Mononen, 3d graphics programming module 1 task 1 -->
+
+<!doctype html>
+<html>
+	<head>
+		<title>Task 1</title>
+		<style>
+			body{ background-color:grey;}
+			canvas{ background-color: white;}
+		</style>
+		<script id ="vertexShader" type="x-shader/x-vertex">
+		//in this script we will make the code of our vertex shader that is responsible for drawing our vertices to display
+		attribute vec3 aVertexPosition;
+		void main(void){
+			gl_Position = vec4(aVertexPosition,1.0);
+		}
+		</script>
+		<script id="fragmentShader" type="x-shader/x-fragment">
+		//this shader is responsible for the colors of each pixel
+
+		void main(void){
+			gl_FragColor = vec4(0.0,1.0,0.0, 1.0); //RGB values, last one is alpha
+		}
+		</script>
+
+
+		<script >
+		//Main script that has necessary methods and variables
+
+		//first the variables
+		var gl = null;
+		var canvas = null;
+		var glProgram = null;
+		var fragmentShader = null;
+		var vertexShader = null;
+
+		var vertexPositionAttribute = null;
+		var trianglesVerticeBuffer = null;
+
+		function initWebGL(){ //this is the function that starts everything
+			//first we get the canvas from our html document and store it in a variable
+			canvas = document.getElementById("my-canvas");
+			//then we use try catch to try get the webgl context to its variable, if succeed we proceed forward with other functions
+			try{
+				gl = canvas.getContext("webgl") 
+					|| canvas.getContext("experimental-webgl");
+			}catch(e){
+			}
+			if(gl) { // if gl is found we go here to go through functions
+				setupWebGL();
+				initShaders();
+				setupBuffers();
+				drawScene();
+			}else{ //if not found inform about that
+				alert("Appears as your browser does not support webgl, please use another browser");
+			}
+		}
+
+		function setupWebGL(){ //in this function we do necessary starting setup for the canvas
+			gl.clearColor(1.0,0,0,1.0); // we set the clearing color to red
+			gl.clear(gl.COLOR_BUFFER_BIT); //and here we clear the canvas with our color
+		}
+
+		function initShaders(){ // in this function we do all necessary things to make our shaders work
+			
+			//first we create the shaders by using the inner html of our other script sections
+			vertexShader = gl.createShader(gl.VERTEX_SHADER);
+			fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+			
+			gl.shaderSource(vertexShader, document.getElementById("vertexShader").innerHTML);
+			gl.shaderSource(fragmentShader, document.getElementById("fragmentShader").innerHTML);
+
+			//then we compile the shaders
+			gl.compileShader(vertexShader);
+			gl.compileShader(fragmentShader);
+			//then we check for errors in compiling
+			if(!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)){ //if we DON'T get the compile status we will show error
+				alert("Error compiling vertexShader");
+			}
+			if(!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)){
+				alert("Error compiling fragmentShader");
+			}
+
+			//next we create our program that uses the shaders
+			glProgram = gl.createProgram();
+			//then we attach our created and compiled shaders to our program
+			gl.attachShader(glProgram,vertexShader);
+			gl.attachShader(glProgram,fragmentShader);
+			//and then we have to link the program
+			gl.linkProgram(glProgram);
+			//check the link
+			if(!gl.getProgramParameter(glProgram,gl.LINK_STATUS)){
+				alert("Linkint the program failed");
+			}
+			//and finally we use our created program
+			gl.useProgram(glProgram);
+		}
+		
+		function setupBuffers(){
+			//in this function we will store our verticedata to buffer
+			var triangleVertices = [
+				//left triangle
+				-0.5,0.5,0.0,
+				0.0,0.0,0.0,
+				-0.5,-0.5,0.0,
+				//right triangle
+				//0.5,0.5,0.0,
+				//0.0,0.0,0.0,
+				//0.5,-0.5,0.0
+			];
+
+			trianglesVerticeBuffer = gl.createBuffer();
+			//we have to bind the buffer to our gl
+			gl.bindBuffer(gl.ARRAY_BUFFER, trianglesVerticeBuffer);
+			//and add our verticedata to our created buffer
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangleVertices),gl.STATIC_DRAW);
+		}
+
+		function drawScene(){
+			//this function is used to do the drawing according to our variables and stored info
+			vertexPositionAttribute = gl.getAttribLocation(glProgram, "aVertexPosition");
+			gl.enableVertexAttribArray(vertexPositionAttribute);
+			gl.bindBuffer(gl.ARRAY_BUFFER,trianglesVerticeBuffer);
+			gl.vertexAttribPointer(vertexPositionAttribute,3,gl.FLOAT,false,0,0);
+			gl.drawArrays(gl.TRIANGLES,0,3);
+
+		}
+
+		</script>
+	</head>
+	<body onload="initWebGL()">
+		<canvas id ="my-canvas" width="400" height="300">
+			Your browser does not support the HTML5 canvas element
+		</canvas>
+
+	</body>
+</html>
