@@ -1,0 +1,234 @@
+<!-- Janne Mononen, 3d graphics programming module 1 task 1 -->
+
+<!doctype html>
+<html>
+	<head>
+		<title>Task 1</title>
+		<style>
+			body{ background-color:grey;}
+			canvas{ background-color: black;}
+		</style>
+		<script id ="vertexShader" type="x-shader/x-vertex">
+		//in this script we will make the code of our vertex shader that is responsible for drawing our vertices to display
+		attribute vec4 aVertexPosition;
+		uniform float uRadius;
+		varying vec4 vFragmentColor;
+		varying float vAngle;
+
+		vec4 transformFunction(float angle){
+			float xCos = cos(radians(angle)) * uRadius;
+			float ySin = sin(radians(angle)) * uRadius;
+			vec4 returnVector = vec4(xCos,ySin,0.0,1.0);
+			return returnVector;
+		}
+
+		vec4 color(float angle){
+			float xCos = cos(radians(angle));
+			float ySin = sin(radians(angle));
+			vec4 returnVector = vec4(xCos,ySin,0.5,1.0);
+			return returnVector;
+		}
+
+		void main(void){
+			
+			gl_PointSize = 3.0;
+			
+			gl_Position = vec4(aVertexPosition.x,aVertexPosition.y,aVertexPosition.z,1.0) + transformFunction(aVertexPosition.w * 36.0);
+			vFragmentColor = color(aVertexPosition.w * 36.0);
+			vAngle = aVertexPosition.w * 36.0;
+		}
+		</script>
+
+
+		<script id="fragmentShader" type="x-shader/x-fragment">
+		//this shader is responsible for the colors of each pixel
+		precision highp float;
+		varying vec4 vFragmentColor;
+		varying float vAngle;
+
+		vec4 color(float angle){
+			float xCos = cos(radians(angle));
+			float ySin = sin(radians(angle));
+			vec4 returnVector = vec4(xCos,ySin,0.5,1.0);
+			return returnVector;
+		}
+
+		void main(void){
+			//gl_FragColor = vFragmentColor; //RGB values, last one is alpha
+			gl_FragColor = color(vAngle);
+		}
+
+
+		</script>
+
+
+		<script >
+		//Main script that has necessary methods and variables
+
+		//first the variables
+		var gl = null;
+		var canvas = null;
+		var glProgram = null;
+		var fragmentShader = null;
+		var vertexShader = null;
+		var drawType = 1;
+		var radius = 1.0;
+
+
+		var vertexPositionAttribute = null;
+		var vertexRadiusUniform = null;
+		var trianglesVerticeBuffer = null;
+
+		function changeRadius(){
+			radius = document.getElementById("radiusValue").value;
+			if (radius > 2){
+				radius = 2;
+			}else if(radius < 0){
+				radius = 0;
+			}
+			console.log("Radius is now " + radius);
+			initWebGL(drawType);
+		}
+
+		function initWebGL(initNumber){ //this is the function that starts everything
+			switch(initNumber){
+				case 1://point
+					console.log("Initialized with number 1");
+					drawType = 1;
+					break;
+				case 2://line
+					console.log("Initialized with number 2");
+					drawType = 2;
+					break;
+				case 3://polygon
+					console.log("Initialized with number 3");
+					drawType = 3;
+					break;
+			}
+			//first we get the canvas from our html document and store it in a variable
+			canvas = document.getElementById("my-canvas");
+			//then we use try catch to try get the webgl context to its variable, if succeed we proceed forward with other functions
+			try{
+				gl = canvas.getContext("webgl") 
+					|| canvas.getContext("experimental-webgl");
+			}catch(e){
+			}
+			if(gl) { // if gl is found we go here to go through functions
+				setupWebGL();
+				initShaders();
+				setupBuffers();
+				drawScene();
+			}else{ //if not found inform about that
+				alert("Appears as your browser does not support webgl, please use another browser");
+			}
+		}
+
+		function setupWebGL(){ //in this function we do necessary starting setup for the canvas
+			gl.clearColor(0,0,0,1.0); // we set the clearing color to red
+			gl.clear(gl.COLOR_BUFFER_BIT); //and here we clear the canvas with our color
+		}
+
+		function initShaders(){ // in this function we do all necessary things to make our shaders work
+			
+			//first we create the shaders by using the inner html of our other script sections
+			vertexShader = gl.createShader(gl.VERTEX_SHADER);
+			fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+			
+			gl.shaderSource(vertexShader, document.getElementById("vertexShader").innerHTML);
+			gl.shaderSource(fragmentShader, document.getElementById("fragmentShader").innerHTML);
+
+			//then we compile the shaders
+			gl.compileShader(vertexShader);
+			gl.compileShader(fragmentShader);
+			//then we check for errors in compiling
+			if(!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)){ //if we DON'T get the compile status we will show error
+				alert("Error compiling vertexShader");
+			}
+			if(!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)){
+				alert("Error compiling fragmentShader");
+			}
+
+			//next we create our program that uses the shaders
+			glProgram = gl.createProgram();
+			//then we attach our created and compiled shaders to our program
+			gl.attachShader(glProgram,vertexShader);
+			gl.attachShader(glProgram,fragmentShader);
+			//and then we have to link the program
+			gl.linkProgram(glProgram);
+			//check the link
+			if(!gl.getProgramParameter(glProgram,gl.LINK_STATUS)){
+				alert("Linkint the program failed");
+			}
+			//and finally we use our created program
+			gl.useProgram(glProgram);
+		}
+		
+		function setupBuffers(){
+			//in this function we will store our verticedata to buffer
+			var polygonVertices = [
+				0.0,0.0,0.0,0.0,
+				0.0,0.0,0.0,1.0,
+				0.0,0.0,0.0,2.0,
+				0.0,0.0,0.0,3.0,
+				0.0,0.0,0.0,4.0,
+				0.0,0.0,0.0,5.0,
+				0.0,0.0,0.0,6.0,
+				0.0,0.0,0.0,7.0,
+				0.0,0.0,0.0,8.0,
+				0.0,0.0,0.0,9.0
+
+			];
+
+			trianglesVerticeBuffer = gl.createBuffer();
+			//we have to bind the buffer to our gl
+			gl.bindBuffer(gl.ARRAY_BUFFER, trianglesVerticeBuffer);
+			//and add our verticedata to our created buffer
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(polygonVertices),gl.STATIC_DRAW);
+		}
+
+		function drawScene(){
+			//this function is used to do the drawing according to our variables and stored info
+			vertexRadiusUniform = gl.getUniformLocation(glProgram,"uRadius");
+			gl.uniform1f(vertexRadiusUniform, radius);
+			
+
+			vertexPositionAttribute = gl.getAttribLocation(glProgram, "aVertexPosition");
+			gl.enableVertexAttribArray(vertexPositionAttribute);
+			gl.bindBuffer(gl.ARRAY_BUFFER,trianglesVerticeBuffer);
+			gl.vertexAttribPointer(vertexPositionAttribute,4,gl.FLOAT,false,0,0);
+			switch (drawType){
+				case 1:
+					gl.drawArrays(gl.POINTS,0,10);
+					break;
+				case 2:
+					gl.drawArrays(gl.LINE_LOOP,0,10);
+					break;
+				case 3:
+					gl.drawArrays(gl.TRIANGLE_FAN,0,10);
+					break;
+			}
+
+		}
+
+		function Testi1(){
+			console.log("Testi1");
+		}
+		function Testi2(){
+			console.log("Testi2");
+		}
+
+		</script>
+	</head>
+	<body>
+
+		Circle radius 0-2:<input id="radiusValue" type="number" name="radius" min="0.1" max="2.0">
+		<button id="radiusButton" type="button" onclick="changeRadius()">Change radius</button> <br>
+		<input type="radio" name="gender" value="point" onClick="initWebGL(1)"> Point<br>
+  		<input type="radio" name="gender" value="line" onClick="initWebGL(2)"> Line<br>
+  		<input type="radio" name="gender" value="polygon" onClick="initWebGL(3)"> Polygon<br>
+		<canvas id ="my-canvas" width="800" height="600">
+			Your browser does not support the HTML5 canvas element
+		</canvas>
+
+	</body>
+</html>
