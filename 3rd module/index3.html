@@ -1,0 +1,348 @@
+<!-- Janne Mononen, 3d graphics programming module 3-->
+
+<!doctype html>
+<html>
+  <head>
+    <title>Module 3, skybox</title>
+    <style>
+      body{ background-color:grey;}
+      canvas{ background-color: black;}
+    </style>
+    <script src="gl-matrix-min.js"></script>
+
+    <script id ="vertexShader" type="x-shader/x-vertex">
+    //in this script we will make the code of our vertex shader that is responsible for drawing our vertices to display
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexColor;
+    //attribute vec2 aTexCoord;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+ 
+    varying vec3 texcoord;
+    varying vec4 vColor;
+    
+    void main(void){
+      
+      gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition,1.0);
+      //gl_Position = vec4(aVertexPosition,1.0);
+      vColor = vec4(aVertexColor,1.0);
+      texcoord = aVertexPosition;
+
+    }
+    </script>
+
+
+    <script id="fragmentShader" type="x-shader/x-fragment">
+    //this shader is responsible for the colors of each pixel
+    precision highp float;
+
+    uniform samplerCube uSampler;
+    
+    varying vec3 texcoord;
+    varying vec4 vColor;
+
+
+    void main(void){
+      //gl_FragColor = vFragmentColor; //RGB values, last one is alpha
+      //gl_FragColor = vec4(1.0,0.0,0.0,1.0);
+      gl_FragColor = textureCube(uSampler, texcoord.rgb,1.0);
+      //gl_FragColor = vec4(1.0,0.0,0.0,1.0);
+      /*if(gl_FrontFacing){
+      gl_FragColor = vColor;
+    }else{
+      gl_FragColor = vColor;
+    }*/
+    }
+
+
+    </script>
+
+
+    <script >
+    //Main script that has necessary methods and variables
+
+    //first the variables
+    var gl = null;
+    var canvas = null;
+    var glProgram = null;
+    var fragmentShader = null;
+    var vertexShader = null;
+
+    var pMatrix = mat4.create();
+    var mvMatrix = mat4.create();
+
+    var vertexPositionAttribute = null;
+    var vertexColorAttribute = null;
+    var textureCoordAttribute = null;
+    var trianglesTexCoordBuffer = null;
+    var trianglesVerticeBuffer = null;
+    var triangleVerticesIndexBuffer = null;
+    var trianglesColorBuffer = null;
+    var texture = null;
+    var angle = 0.01;
+    var posXImage = null;
+    var cubeTexture = null;
+    var cubeMapImages = [];
+    var imageUrls = ["posx.jpg","negx.jpg","posy.jpg","negy.jpg","posz.jpg","negz.jpg"];
+
+
+    function initWebGL(){ //this is the function that starts everything
+      console.log("init called");
+      //first we get the canvas from our html document and store it in a variable
+      canvas = document.getElementById("my-canvas");
+      //then we use try catch to try get the webgl context to its variable, if succeed we proceed forward with other functions
+      try{
+        gl = canvas.getContext("webgl") 
+          || canvas.getContext("experimental-webgl");
+      }catch(e){
+      }
+      if(gl) { // if gl is found we go here to go through functions
+        initShaders();
+        setupBuffers();
+        getMatrixUniforms();
+        loadTextures();
+        (function animLoop(){
+          setupWebGL();
+          setMatrixUniforms();
+          drawScene();
+          requestAnimationFrame(animLoop,canvas);
+        })();
+
+        
+      }else{ //if not found inform about that
+        alert("Appears as your browser does not support webgl, please use another browser");
+      }
+    }
+
+    function loadTextures(){
+      for(var i=0;i<6;i++){
+        cubeMapImages[i] = new Image();
+        if(i == 5){
+        cubeMapImages[i].onload = function(){
+          setupTexture();
+        }
+      }
+        cubeMapImages[i].src = imageUrls[i];
+      }
+
+      console.log("Images loaded " + cubeMapImages.length);
+    }
+
+    function setupTexture(){
+      
+
+      cubeTexture = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE0);
+      glProgram.samplerUniform = gl.getUniformLocation(glProgram,"uSampler");
+      gl.uniform1i(glProgram.samplerUniform,0);
+      gl.bindTexture(gl.TEXTURE_CUBE_MAP,cubeTexture);
+      
+      gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X,0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cubeMapImages[0]);
+      gl.texImage2D(gl.TEXTURE_CUBE_MAP_NEGATIVE_X,0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cubeMapImages[1]);
+      gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_Y,0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cubeMapImages[2]);
+      gl.texImage2D(gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cubeMapImages[3]);
+      gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_Z,0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cubeMapImages[4]);
+      gl.texImage2D(gl.TEXTURE_CUBE_MAP_NEGATIVE_Z,0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cubeMapImages[5]);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      if(!gl.isTexture(cubeTexture)){
+        console.log("Texture is not valid");
+      }else{
+        console.log("Texture loaded succesfully");
+      }
+
+      gl.bindTexture(gl.TEXTURE_CUBE_MAP,null);
+
+    }
+
+    function setupWebGL(){ //in this function we do necessary starting setup for the canvas
+      gl.clearColor(0,0,0,1.0); // we set the clearing color to red
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); //and here we clear the canvas with our color
+
+      gl.viewport(0,0, canvas.width,canvas.height);
+      mat4.perspective(pMatrix, 45, canvas.width / canvas.height, 0.1, 1000.0);
+      mat4.identity(mvMatrix);
+
+      var translation = vec3.create();
+      vec3.set (translation, 0, 0, 0);
+      mat4.translate (mvMatrix, mvMatrix, translation);
+
+      var rotation = vec3.create();
+      vec3.set(rotation,0.0,1.0,0.0);
+      mat4.rotate(mvMatrix,mvMatrix,angle,rotation);
+      angle += 0.01;
+    }
+
+    function getMatrixUniforms(){
+      glProgram.pMatrixUniform = gl.getUniformLocation(glProgram,"uPMatrix");
+      glProgram.mvMatrixUniform = gl.getUniformLocation(glProgram,"uMVMatrix");
+      console.log("Matrices got");
+    }
+
+    function setMatrixUniforms(){
+      gl.uniformMatrix4fv(glProgram.pMatrixUniform,false,pMatrix);
+      gl.uniformMatrix4fv(glProgram.mvMatrixUniform,false,mvMatrix);
+      console.log("Matrices set");
+    }
+
+    function initShaders(){ // in this function we do all necessary things to make our shaders work
+      
+      //first we create the shaders by using the inner html of our other script sections
+      vertexShader = gl.createShader(gl.VERTEX_SHADER);
+      fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+      
+      gl.shaderSource(vertexShader, document.getElementById("vertexShader").innerHTML);
+      gl.shaderSource(fragmentShader, document.getElementById("fragmentShader").innerHTML);
+
+      //then we compile the shaders
+      gl.compileShader(vertexShader);
+      gl.compileShader(fragmentShader);
+      //then we check for errors in compiling
+      if(!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)){ //if we DON'T get the compile status we will show error
+        alert("Error compiling vertexShader");
+      }
+      if(!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)){
+        alert("Error compiling fragmentShader");
+      }
+
+      //next we create our program that uses the shaders
+      glProgram = gl.createProgram();
+      //then we attach our created and compiled shaders to our program
+      gl.attachShader(glProgram,vertexShader);
+      gl.attachShader(glProgram,fragmentShader);
+      //and then we have to link the program
+      gl.linkProgram(glProgram);
+      //check the link
+      if(!gl.getProgramParameter(glProgram,gl.LINK_STATUS)){
+        alert("Linkint the program failed");
+      }
+      //and finally we use our created program
+      gl.useProgram(glProgram);
+      console.log("Shaders and program done");
+    }
+    
+    function setupBuffers(){
+
+
+      //in this function we will store our verticedata to buffer
+     
+
+      var triangleVertices = [
+        -100,-100,100,
+        -100,100,100,
+        100,100,100,
+        100,-100,100,
+
+        -100,-100,-100,
+        -100,100,-100,
+        100,100,-100,
+        100,-100,-100
+      ];
+
+      trianglesVerticeBuffer = gl.createBuffer();
+      //we have to bind the buffer to our gl
+      gl.bindBuffer(gl.ARRAY_BUFFER, trianglesVerticeBuffer);
+      //and add our verticedata to our created buffer
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangleVertices),gl.STATIC_DRAW);
+
+      /*var triangleTexCoords = [
+        //front face
+        0.0, 0.0,
+        1.0, 0.0,
+        1.0, 1.0,
+        0.0, 1.0,
+
+        0.0, 0.0,
+        1.0, 0.0,
+        1.0, 1.0,
+        0.0, 1.0,
+
+        0.0, 0.0,
+        1.0, 0.0,
+        1.0, 1.0,
+        0.0, 1.0,
+
+        0.0, 0.0,
+        1.0, 0.0,
+        1.0, 1.0,
+        0.0, 1.0,
+
+        0.0, 0.0,
+        1.0, 0.0,
+        1.0, 1.0,
+        0.0, 1.0,
+
+        0.0, 0.0,
+        1.0, 0.0,
+        1.0, 1.0,
+        0.0, 1.0
+      ]
+
+      trianglesTexCoordBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, trianglesTexCoordBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangleTexCoords),gl.STATIC_DRAW); */
+
+      //Next indice data for our cube
+      var triangleVerticeIndices=[
+        //front
+        0,1,3,
+        3,1,2,
+        //back
+        4,7,5,
+        6,5,7,
+        //Right
+        2,6,3,
+        3,6,7,
+        //Left
+        5,1,0,
+        5,0,4,
+        //bottom
+        3,4,7,
+        3,0,4,
+        //top
+        1,5,6,
+        1,6,2
+      ];
+
+      triangleVerticesIndexBuffer = gl.createBuffer();
+      triangleVerticesIndexBuffer.number_vertex_points = triangleVerticeIndices.length;
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,triangleVerticesIndexBuffer);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(triangleVerticeIndices),gl.STATIC_DRAW);
+      console.log("Buffers done");
+    }
+
+    function drawScene(){
+      //this function is used to do the drawing according to our variables and stored info
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_CUBE_MAP,cubeTexture);
+
+      vertexPositionAttribute = gl.getAttribLocation(glProgram, "aVertexPosition");
+      gl.enableVertexAttribArray(vertexPositionAttribute);
+      gl.bindBuffer(gl.ARRAY_BUFFER,trianglesVerticeBuffer);
+      gl.vertexAttribPointer(vertexPositionAttribute,3,gl.FLOAT,false,0,0);
+
+
+      //textureCoordAttribute = gl.getAttribLocation(glProgram,"aTexCoord");
+      //gl.enableVertexAttribArray(textureCoordAttribute);
+      //gl.bindBuffer(gl.ARRAY_BUFFER, trianglesTexCoordBuffer);
+      //gl.vertexAttribPointer(textureCoordAttribute,2,gl.FLOAT,false,0,0);
+
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,triangleVerticesIndexBuffer);
+      gl.drawElements(gl.TRIANGLES,triangleVerticesIndexBuffer.number_vertex_points,gl.UNSIGNED_SHORT,0);
+     
+      }
+
+    
+
+    </script>
+  </head>
+  <body onload = "initWebGL()">
+    <canvas id ="my-canvas" width="1000" height="800">
+      Your browser does not support the HTML5 canvas element
+    </canvas>
+
+  </body>
+</html>
